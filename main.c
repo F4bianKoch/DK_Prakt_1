@@ -9,12 +9,9 @@
 int pipe_desc_initiator[2];
 int pipe_desc_responder[2];
 
-char message_whole[] = "TheQuickBrownRabbit";
-char response_whole[] = "JumpsOverTheLazyFox";
-
 void abp_initiator() {
-    char response[1000];
-    int res_length = read(pipe_desc_initiator[0], &response, 1000);
+    char response[2];
+    int res_length = read(pipe_desc_initiator[0], &response, 2);
 
     if (res_length == -1) {
         fprintf(stderr, "Error: while reading the response!\n");
@@ -25,8 +22,8 @@ void abp_initiator() {
 }
 
 void abp_responder() {
-    char message[1000];
-    int msg_length = read(pipe_desc_responder[0], &message, 1000);
+    char message[2];
+    int msg_length = read(pipe_desc_responder[0], &message, 2);
 
     if (msg_length == -1) {
         fprintf(stderr, "Error: while reading the response!\n");
@@ -34,16 +31,12 @@ void abp_responder() {
 
     write(STDOUT_FILENO, &message, msg_length);
     write(STDOUT_FILENO, "\n", 1);
-
-    char response[2] = {*response_whole, message[1]};
-    write(pipe_desc_initiator[1], response, 2);
-
-    if (kill (getppid(), SIGUSR1) == -1) {
-        fprintf(stderr, "Error: while killing child!\n");
-    }
 }
 
 int main() {
+    char message_whole[] = "TheQuickBrownRabbit";
+    char response_whole[] = "JumpsOverTheLazyFox";
+
     // generate pipes
     if (pipe(pipe_desc_initiator) == -1) {
         fprintf(stderr, "Error: while generating the initiator pipe!\n");
@@ -77,17 +70,19 @@ int main() {
 
         sleep(1);
 
-        char message_start[2] = {message_whole[0], '1'};
+        for (int i = 0; i < strlen(message_whole); i++) {
+            char message[2] = {message_whole[i], '1'};
 
-        if (write(pipe_desc_responder[1], &message_start, 2) == -1) {
-            fprintf(stderr, "Error: while sending the message from parent!\n");
+            if (write(pipe_desc_responder[1], &message, 2) == -1) {
+                fprintf(stderr, "Error: while sending the message from parent!\n");
+            }
+
+            if (kill(c_pid, SIGUSR2) == -1) {
+                fprintf(stderr, "Error: while killing child!\n");
+            }
+
+            pause();
         }
-
-        if (kill (c_pid, SIGUSR2) == -1) {
-            fprintf(stderr, "Error: while killing child!\n");
-        }
-
-        pause();
 
         sleep(1);
 
@@ -109,8 +104,19 @@ int main() {
             fprintf(stderr, "Error: while preping parent system for signal\n");
         }
 
-        // start waiting for messages
-        pause();
+        for (int i = 0; i < strlen(response_whole); i++) {
+            pause();
+
+            char response[2] = {response_whole[i], '1'};
+            if (write(pipe_desc_initiator[1], &response, 2) == -1) {
+                fprintf(stderr, "Error: while sending the message from child!\n");
+            }
+
+            if (kill(getppid(), SIGUSR1) == -1) {
+                fprintf(stderr, "Error: while killing parent!\n");
+            }
+
+        }
 
         sleep(1);
 
